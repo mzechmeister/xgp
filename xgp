@@ -1,0 +1,1375 @@
+#! /bin/bash
+# start this script in background &
+# the next line restarts using wish \
+wish "$0" ${1+"$@"} &
+# \
+exit
+
+#! /usr/bin/wish
+# font create myDefaultFont -family Arial -size 20
+# font create myDefaultFont -family Courier -size 10
+# font create myDefaultFont -family Sans-Serif -size 9
+font create myDefaultFont -family "Adobe Helvetica" -size 9
+ option add *font myDefaultFont
+
+# Initialise
+wm title . "xgp"
+
+set xgp_version "v0.07 (2017-09-22)"
+set b_output 0
+set nf 2
+set def_term [set e_term "wxt"]
+set def_zoom [set e_zoom "$env(HOME)/zoom.gnu"]
+set def_preview [set e_preview "set term postscript color por solid enh size 12cm,10cm 14"]
+set def_gpconf [set e_gpconf "-bg white"]
+set outfile "xgp.ps"
+set preffile "~/.xgp"
+set loadfile ""
+set exportAs ""
+set saveAsgnu ""
+set xgpfile ""
+set varfuncs ""
+set varb_fs ""
+set varlabels ""
+set script ""
+array set xgplog {}
+array set gpopt {}
+set curfocus ""
+set cb_debug 0
+set cb_term 1
+set cb_zoom 1
+set cb_plottyp 1
+set pid ""
+
+# https://sourceforge.net/p/gnuplot/patches/_discuss/thread/dd8a7c1b/630c/attachment/icon.svg
+# https://raw.githubusercontent.com/wallamejorge/ADSD_ProyectoFinal_VestibulumSensorium/master/CodigosCBeagleBoneBlack/gnuplot-4.6.4/src/wxterminal/bitmaps/xpm/icon16x16.xpm
+# convert to gif and then to base64
+#set im [image create photo  -format gif -file "/home/zechmeister/bin/icon16x16.gif"]
+#puts $im
+image create photo gpicon -data { R0lGODlhEAAQAPcyABcXFwwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDBMTEwsLC+jo6PPz8wAAAPPz8/Pz87y8vPPz8/Pz8/Pz84fJmR7tV+rz7fPz87a2tgcHBwsLC7y8vMXFxQAAAMXFxcXFxcXFxcXFxcXFxbPKuRbyUpHTo8XFxcXFxcDAwAcHBwsLC/T09P///wAAAP///////8XFxf////j/+jz6cGPehf///////////8DAwAcHBwsLC/Tp6f///wAAAP///////8XFxf7//lr6hlX6gsTFxP///////////8DAwAcHBwsLC/Rwc//9/gAAAP///////8XFxW/7lT36cff/+cXFxf///////////8DAwAcHBwsLC/Rnaf+3uQAAAP///////17ggjH5aN/v87/B/7Ozzf///////////8DAwAcHBwsLC8iiovhUVwgCAsXFxV3ggSTvXJCkzExQ+mpt7UxQ+qOk1MXFxcXFxZqb0AcHBwsLC/T09P9+gGshIGf7kDT5ao+izVNW/9XW/////6Ch1Vxf/+rq/76//0lN8wcHBwsLC4fxpNrbwUPHRUj6ecnX9UxQ+tjZ///////6+tySk5xavFBP+mxv/6OkzAcHBwsLCz7vbhf5VVyVPOmhslZZ/56f1v////////+Fh+9pbP98fv9xc//4+MDAwAcHBwsLC/T09P///zAOEW9F06Oj/cXFxf/////V1v9eYMfBwv/+/v+Iiv+RksDAwAcHBwsLCxMTExQUFCIkhWhByK86PRAPDxUUFMk+QWwjJA8PDxQUFB0TE+VAQkQdHgcHBwsLC+Hh4by96zo+5Obf7v9tb99gYu5qbP90du3r67a2tuvr6+vr6/ivsOJdXwcHBwsLC+Pk7FZa9xIUSPf39/fw8NeLjPexsvfy8vf397+/v/f39/f39/fz8+tOUQcHBxMTEwgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA4ODiH5BAAAAAAALAAAAAAQABAAAAj+AAEEEDCAQAEDBxAkULCAQQMHDyBEkDCBQgULFzBk0LCBQwcPH0CEEDGCRAkTJ1CkULGCRQsXL2DEkDGDRg0bN3Dk0LGDRw8fP4AEETKESBEjR5AkUbKESRMnT6BEkTKFShUrV7Bk0bKFSxcvX8CEETOGTBkzZ9CkUbOGTRs3b+DEkTOHTh07d/Dk0bOHTx8/fwAFEjSIUCFDhxAlUrSIUSNHjyBFkjSJUiVLlzBl0rSJUydPn0CFEjWKVClTp1ClUrWKVStXr2DFkjWLVi1bt3Dl0rWLVy9fv4AFEzaMWDFjx5AlU7aMWTNnz6BFkzaNWjVr17Bl07aNWzdv38AlhRM3jlw5c+fQpVO3jl07d+/gxZM3j149e/fw5dO3j18/f/8EBAA7}
+
+# from http://wiki.tcl.tk/38212
+image create photo fileopen-16 -data {R0lGODlhEAAQAIMAAPwCBASCBMyaBPzynPz6nJxmBPzunPz2nPz+nPzSBPzqnPzmnPzinPzenAAAAAAAACH5BAEAAAAALAAAAAAQABAAAARTEMhJq724hp1n8MDXeaJgYtsnDANhvkJRCcZxEEiOJDIlKLWDbtebCBaGGmwZEzCQKxxCSgQ4Gb/BbciTCBpOoFbX9X6fChYhUZYU3vB4cXTxRwAAIf5oQ3JlYXRlZCBieSBCTVBUb0dJRiBQcm8gdmVyc2lvbiAyLjUNCqkgRGV2ZWxDb3IgMTk5NywxOTk4LiBBbGwgcmlnaHRzIHJlc2VydmVkLg0KaHR0cDovL3d3dy5kZXZlbGNvci5jb20AOw==}
+
+image create photo filesave-16 -data {R0lGODlhEAAQAIQAAPwCBFRShGRmzPT6/Oz2/OTy/Nzu/NTm/AQCBMTi/Lze/Mzm/KzW/NTq/LTa/AQCxOTi5Nze3Nza3MzOzLy+xNTS1MTGxMzKzAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH5BAEAAAAALAAAAAAQABAAAAVkICCOZCkGaKqqpxAMRFEYRx0gQfvGRZ0oKZ2MdlgogC6doVc8MgJJADRQaxidU13t8HMwnlGoa4UShM2PtFp9fkAikomcQnm0IebKxGKp3/MTF3R2OVICboB7foVSZGQmkCR+IQAh/mhDcmVhdGVkIGJ5IEJNUFRvR0lGIFBybyB2ZXJzaW9uIDIuNQ0KqSBEZXZlbENvciAxOTk3LDE5OTguIEFsbCByaWdodHMgcmVzZXJ2ZWQuDQpodHRwOi8vd3d3LmRldmVsY29yLmNvbQA7}
+
+#/usr/share/icons/oxygen/16x16/actions/document-save-as.png
+# convert /usr/share/icons/oxygen/16x16/actions/document-new.png -channel A -threshold 50% -colors 64 gif:- | base64 -w 0;echo
+image create photo docnew-16 -data {R0lGODlhEAAQAPQAAAB1AAOWAwSqAhqjAACzAB22HTOoADawADO8HSeoJyG0IT+0KTa/NmSwAFq8KSPEIzXANVvDW3nVeH6CgoKGh4/Pj5XelcnJyevs7O/v8O/w8Pn5+QAAAAAAAAAAAAAAACH5BAEAABwALAAAAAAQABAAAAViICeOJJBEyYitq+ZWkLRJkMhiWa4lirM5kACHlXG5AptkUogxupIKgWHTOAiGRuXGIhhsDgRRVqO1PARhMVnLJj3ZWtJmDU/K60rNHY65XCh7bBcbgG51fyQidRgTiY6PJCEAOw==}
+
+# convert /usr/share/icons/oxygen/16x16/actions/document-save.png -channel A -threshold 90% +dither -colors 16 gif:- | base64 -w 0;echo
+image create photo filesave-16 -data {R0lGODlhEAAQAPMAADg2NykmJx8dHUA+P0pHSFVSU3FxcUI/QLKztpGbpZ23z9Dc5/X3++zx9dXW1wAAACH5BAEAAA8ALAAAAAAQABAAAARn8MlJqyQE6c3xLUwojgYhDaCiripTDBIAjnQBxEWj77yNN4mgMLjwPWSLpHJplBWe0GgTQ61Sb48AxsHtOgLagCRwOCAAgE54jE4AAsNBoCDOBgCJgGAIEBQEEgKCBoSFBoKCFooUEQA7}
+
+# convert /usr/share/icons/oxygen/16x16/actions/document-save-as.png -channel A -threshold 80% +dither -colors 32 gif:- | base64 -w 0;echo
+image create photo filesaveas-16 -data {R0lGODlhEAAQAPQAABkXFygmJjk3ODYxKSklGkQ6LGJSI0hGRlVTVHFxcW9iS5YWEYpuFIp4U8pYRM8rK7SRI9amEM2nKaSTVuzMZOG9SXR7gpSVlrKztp2ioN3OnvT3++vx9c7V2aW3xQAAACH5BAEAAB8ALAAAAAAQABAAAAWf4CeO5Oc85HFgbItV53KIB7LdOCURy1KIAptn6JlIAoCIQQC04TSVAQAyETA/QY4WWphKLodrNnOhGAAMCOKCECM6Hc0kYIgkLJ12E0GZ1wcBNXofAwcVEAEFEVICKgcDIgMQiANKBxcdAYGQHwqUSgEILAeBASIZGpUMAAcZrqQIph8aFBCrABe5FwIEsR8NBQ0DCcTFCQDIBJ0lzCQhADs=}
+
+#convert /usr/share/icons/oxygen/16x16/actions/edit-find.png -channel A -threshold 50% +dither -colors 16 gif:- | base64 -w 0;echo
+image create photo find-16 -data {R0lGODlhEAAQAPMAAAICAhcXFzcoHygoJzYwLk8sEFlIPUpKSVVUU25ubm1bTItFCotdO4t4aauRegAAACH5BAEAAA8ALAAAAAAQABAAAARi8MlJq734ASB3DskgDUlwAcMQrEHKUeBwgEhwkGZHHMkeAAdCIvgCNUKqFuloAiAEAkMpBTJAERtCgcFQ/AABBbcg2AgKi4VXEk6TNwNFw3F4AR0NxYADJngmWT8Zg4SFFxEAOw==}
+
+# convert /usr/share/icons/oxygen/16x16/apps/utilities-terminal.png +dither -channel A -threshold 10% -colors 16 gif:- | base64 -w 0;echo
+image create photo terminal-16 -data {R0lGODlhEAAQAPMAAC0tLTAwLzc3Nj9APkBBP0ZHRVZYVWJjYnx8fIiIiJmZmLi4uMnJydjY2Ofn5wAAACH5BAEAAA8ALAAAAAAQABAAAARc8MlJq2QtN8e7vkU4CKQQnEEDLokRFmUAqA9TGFhoAjzAgAxF4cBYyHq/2gtGOvKSthCh2XteCCJqFYpl7rYXge4Lri3OC0YRfYYm3vA4ArGQLDSejLpo6fv/ExEAOw==}
+
+# convert /usr/share/icons/oxygen/16x16/actions/application-exit.png -channel A -threshold 50% +dither -colors 16 gif:- | base64 -w 0;echo
+image create photo exit-16 -data {R0lGODlhEAAQAPMAAHgBAZULBqkNA6ovHNErItxJDbVWVNZzX7FFMseCfM6RkdeqqtjV1enl5MGamgAAACH5BAEAAA8ALAAAAAAQABAAAAR68B1Cq6VLqs17J4IncoJwKAsjMssWmErTMMlxJIzsCoYRzwmcznB49XwyRq6h6BUFCEQvMVMmDIhB4LUNDBBKJaLU7UJzYca4vAXLbOE1YDtYHgqFg6yBCMxfOXd4eTNaAFpeCIODWQIDAFkDkgOLBJOPDwCam5ycDxEAOw==}
+
+# convert /usr/share/icons/oxygen/16x16/actions/help-about.png -channel A -threshold 50% -colors 16 gif:- | base64 -w 0;echo
+image create photo help-about-16 -data {R0lGODlhEAAQAPMAABdquwFbsgRy1CV6yQB75DSJ1gKC7CWH3kyT1WWd1HKn2lSe34iz3f7+/6vK6AAAACH5BAEAAA8ALAAAAAAQABAAAARl8MlJq30BgHAnSIyiMMlwDWLSNKJiUl+SKGu4JAI1IDziOIUFYnGYBArIwmCZROYeAsFSsGoMDljCMxDtrqJaAkHS9TYE4vQEbUarJ2HtV2wwVNLVBqF+MRCwCwV8HQ91g4SIDxEAOw==}
+
+# convert /usr/share/icons/oxygen/16x16/actions/help-hint.png -background "#FFFFFF00"  -channel A -threshold 92%  -transparent-color "#FFFFFF00" +dither -colors 16 gif:- | base64 -w 0;echo
+image create photo help-hint-16 -data {R0lGODlhEAAQAPMOAE9MSPu6FOS6M/zDG/nMK/zjO9bGP+/WSfrkTPjlbdvKR5uZlfrrofPv3P///4B/fSH5BAEAAA4ALAAAAAAQABAAAARZ0Mk5CBkzT8taY5Y2BUxpBqIzHEfiJsiBaSRSvgxKw4eiILaDqFJQsH4IQmpQOBh6iMFMwyz+Crpl0VCYpgIFAze7DAgEodQEsGgv1OtF4w2XsNv1yYOuiQAAOw==}
+
+# convert /usr/share/icons/oxygen/16x16/actions/help-contents.png -channel A -threshold 80% +dither -colors 16 gif:- | base64 -w 0;echo
+image create photo help-content-16 -data {R0lGODlhEAAQAPMAAAAAABYWFhQgMD9IUitJcTpGUxZXozV4yj9klE2J2HWq92Wb4o227qrH7d3n8QAAACH5BAEAAA8ALAAAAAAQABAAAARr8IkQhLk4Pzmc/+BibEAhFEemkoNAHEsjN8mRsm7iKDbj2KMHoEXwMWw6XnCYoyUSvkViSXxaHYwnNWeVWbeEhXjhGC8OOMSY0TCjhS2EYs6Y299MOd0+x8fpHnx+Ano+O3YJJCYEVo1PaBEAOw==}
+
+# convert /usr/share/icons/oxygen/16x16/mimetypes/text-plain.png -channel A -threshold 40% +dither -colors 4 gif:- | base64 -w 0;echo
+image create photo text-plain-16 -data {R0lGODlhEAAQAPEAAPn5+dPS0pmZmQAAACH5BAEAAAMALAAAAAAQABAAAAIznI95wO2MgACh2gri21Hcny3b031XaIzk4pmY9gjyVFpTk2x3oEjXxOs9AqgcsRFUKJcFADs=}
+
+# convert /usr/share/icons/oxygen/16x16/apps/kbugbuster.png -channel A -threshold 90% +dither -colors 16 gif:- | base64 -w 0;echo
+image create photo kbug-16 -data {R0lGODlhEAAQAPMAABkYGA4MDCoRDiolIEwHCWwKC1U4HGtZIH5hXpQEBLEMDJQsLdIFBuoeHuRbVQAAACH5BAEAAA8ALAAAAAAQABAAAARh8MlJaw2ChmAnIBjYeccgGMAoHSVgHGpACIhJqATDsA1TWJuCgoEwNBQKQKpiUDQajuNi5BMoFgDnSJGwJgKJRidQSOgYyAXnQgAk3olB2zJ4EAr4QnvpWd4JNw8BdSojEQA7}
+
+# convert /usr/share/icons/oxygen/16x16/actions/edit-clear-locationbar-rtl.png -channel A -threshold 50% -colors 8 gif:- | base64 -w 0;echo
+image create photo clear-16 -data {R0lGODlhEAAQAPIAABscG0FCP1laWZycnOrq6gAAAAAAAAAAACH5BAEAAAUALAAAAAAQABAAAANCWLrc/jDGQGt1QYwhdA8NEAwER3IAA3RES7ZBqoiU0N5CPAP0eA8xWYHHC9xgPBXvpWkllaOc5wntWHUOonYl6XoTADs=}
+
+# convert /usr/share/icons/oxygen/16x16/categories/preferences-system.png -channel A -threshold 50% +dither -colors 8 gif:- | base64 -w 0;echo
+image create photo pref-16 -data {R0lGODlhEAAQAPIAAF5fX0g/K69xA9ajBenKIZ+fn9bX1wAAACH5BAEAAAcALAAAAAAQABAAAANLeLqstca8dkqcJ9IqGzBUBDbB6BQW6pkGkALUV6EAEGycii/FVwi7SgAgIAx2haFtQCAAG8nagulkJIcN6rPn2gyYRxSG8lVIg4oEADs=}
+
+
+proc x11 {{delay 200}} {
+   global FP stderr script
+
+   set script [pipe $FP]
+   if {$::console=="Script"} {w_stderr}
+
+   set stderr ""
+   if {$delay >= 0} {
+      # read the stderr
+      after $delay ;# a wait is needed
+      fconfigure $FP -blocking 0
+      while {[gets $FP line] >=0} {append stderr "$line\n"}
+
+      fconfigure $FP -blocking 1
+      #if {$stderr!=""} {tk_messageBox -message "$stderr" -type ok}
+      if {$stderr!=""} {set ::console "Error"}
+   }
+   if {$::console=="Error"} {w_stderr}
+
+   if {$::cb_gif} {
+       .gif configure -image [image create photo  -format gif -file test.gif]
+   }
+   if {$::cb_tk} {
+      source test.file
+      gnuplot .tk  ;# gnuplot command is defined in test.file
+   }
+}
+
+proc pipe {{unit ""}} {
+   # creates the script from the gui
+   # the script is returned and sent to unit if specify
+   global e_info b_output outfile
+   global e_term e_preview
+   set term "set term $e_term"
+   if {$b_output && $outfile!=""} {
+      set term "$e_preview; set out '$outfile'"
+      set e_info $term
+   }
+   lappend FP $term
+
+   set opt ""
+   foreach a [array names ::xgplog] {
+      if {$::xgplog($a)!=""} {append opt "$a"}
+   }
+   if {$opt!=""} {lappend FP "set logscale $opt"}
+
+   foreach opt [array names ::gpopt] {
+     if {$::gpopt($opt)==1} {
+         set s ""
+         foreach {k v} [array get ::arg$opt] {append s " $v"}
+         foreach {k v} [array get ::kw$opt] {if {$v!=""} {append s " $k $v"}}
+         foreach {k v} [array get ::rb$opt] {if {$v!=""} {append s " $v"}}
+         lappend FP "set $opt $s"
+      } elseif {$::gpopt($opt)==0} {
+         lappend FP "unset $opt"
+      }
+   }
+
+   lappend FP [.header get 1.0 end]
+
+   set cmd {}
+   for {set i 1} {$i<=$::nf} {incr i} { ;#  dynamic fields, double dereferencing
+      if {[set ::b_f$i] && [set ::plcmd$i]!=""} {lappend cmd [set ::plcmd$i]}
+   }
+
+   if [llength $cmd] {lappend FP "$::plcmd [join $cmd ,]"}
+
+   lappend FP [.trailer get 1.0 end]
+   lappend FP "set out"
+
+   set FP [join $FP "\n"]
+   if {"$unit"!=""} {puts $unit $FP; flush $unit }
+   return $FP
+}
+
+proc debug {} {
+   if {![winfo exists .debug]} {
+      toplevel .debug
+      wm title .debug "debug"
+      ttk::panedwindow .debug.pw -orient vertical
+          pack .debug.pw  -fill both -expand yes
+         .debug.pw add [text .debug.pw.in  -height 10 -bg white -undo yes -autoseparators yes] -weight 10
+         .debug.pw add [text .debug.pw.out -height 10] -weight 5
+      mbind .debug.pw.in {<Shift-Return> <Shift-Key-KP_Enter>} {.debug.pw.out replace 0.0 end [eval "[.debug.pw.in get 0.0 end]"]; break}  ;# avoid insert newline
+   }
+}
+
+proc x11_tmp {cmd} {
+   puts $::FP $cmd
+   flush $::FP
+   if {$::cb_tk} {
+after 200
+      source test.file
+      gnuplot .tk  ;# gnuplot command is defined in test.file
+   }
+   putinfo $cmd
+}
+
+proc _shellexport {} {
+   global FP tmp_cmd
+#   exec konsole &
+   exec xterm -e "echo hi" &
+   puts $FP $tmp_cmd
+   flush $FP
+   putinfo "piped to shell konsole"
+#   set tmp_cmd ""
+}
+
+proc putinfo {text} {
+   set ::e_info $text
+   if $::cb_debug {puts $text}
+}
+
+proc _clear {{fields ""}} {
+   if {"$fields"==""} {
+      set f [focus]
+      if {[winfo class $f]=="Entry"} {$f delete 0 end}
+      if {[winfo class $f]=="Text"} {$f delete 0.0 end}
+   } else {
+      foreach field "plcmd1 plcmd2 trailer $::varlabels $::varfuncs" {
+      set ::$field "" }
+      .header delete 0.0 end
+   }
+}
+
+proc _view {} {
+   if {$::outfile!=""} {exec okular $::outfile &}
+}
+
+proc _blurr {bool field} {
+   $field configure -fg [expr $bool?"black":"grey"]
+   x11
+}
+
+proc _delete {} {
+   file delete $::outfile
+}
+
+proc _input {parent name text {value ""}} {
+   global $name
+   entry $parent.$name -textvariable $name -bg white
+   grid  [label $parent.l_$name -text $text]  $parent.$name -sticky news
+}
+
+proc bool {varname} {
+   upvar 1 $varname var
+   expr {[info exists var] && [set var]!=""}
+}
+
+proc _pref_save {{preffile "~/.xgp"}} {
+   if {$preffile!=""} {
+      set output [open $preffile "w"]
+      foreach variable {e_term e_preview e_gpconf cb_debug cb_plottyp cb_zoom cb_term cb_x11} {
+         global $variable
+         if {[info exists $variable] && $variable!=""} {
+            puts $output "set [list $variable [subst $$variable]]"} }
+      close $output
+      putinfo "pref_save: $preffile"
+   } else {putinfo "pref_save: nothing saved"}
+}
+
+proc _pref_load {{preffile ~/.xgp}} {
+   if [file exists $preffile] {
+      uplevel "source $preffile"
+      putinfo "pref_load: $preffile"
+   }
+}
+
+
+proc p_prefs {} {
+   global e_term e_zoom
+   if {![winfo exists .w_pref]} {
+      toplevel .w_pref ;# Make the window
+      wm title .w_pref "Preferences"
+      pack [frame .w_pref.f_pref] -fill x
+      ttk::combobox .w_pref.f_pref.cb -values {x11 wxt ""} -textvariable  e_term
+      grid  [label .w_pref.f_pref.l_cb -text "Term" ]   .w_pref.f_pref.cb
+      _input .w_pref.f_pref e_preview "Preview"
+      _input .w_pref.f_pref e_zoom  "Zoom"
+      _input .w_pref.f_pref e_gpconf "Start option"
+      grid columnconfigure .w_pref.f_pref {1} -weight 15
+      button .w_pref.b_reset -text "Reset" -command {file delete ~/.xgp; putinfo "prefs: ~/.xgp deleted"}
+      button .w_pref.b_apply -text "Apply" -command {x11}
+      button .w_pref.b_store -text "Store all" -command {_pref_save}
+      button .w_pref.b_close -text "Close" -command {destroy .w_pref}
+      pack .w_pref.b_close .w_pref.b_store .w_pref.b_apply  .w_pref.b_reset -fill x -side right
+   }
+}
+
+proc tricycle {cb} {
+   bind $cb <ButtonPress-1> {
+      upvar #0 [%W cget -variable] v
+      if {$v==[%W cget -offvalue]} {set v {}; break}
+   }
+}
+
+proc set_cb {P x} {  ;# e.g. xlabel nomirror
+   set p [winfo name $P]   ;# us the last string as prefix
+   if {![info exist ::rb$p\($x\)]} {set ::rb$p\($x\) "" }  ;# set undefined tristate
+   grid [checkbutton $P.$p$x -text $x -onvalue $x -offvalue no$x -variable rb$p\($x\)] -sticky W
+   bind $P.$p$x <ButtonRelease> "set gpopt($p) 1"
+   tricycle $P.$p$x
+}
+
+proc set_rb {P x {tit ""}} {  ;# e.g. xtics border
+   set tag [join $x ""]
+#    if {[info exist ::rb_$tag]==0} {set ::rb_$tag ""}
+   set p [winfo name $P]
+   set l [label $P.rb_$tag -text "$tit"]
+   foreach i $x {
+      lappend l [radiobutton $P.rb_$tag$i -text $i -variable rb$p\($tag\) -value $i -anchor w]
+      bind $P.rb_$tag$i <ButtonPress-1> "if {\"\$::rb$p\($tag\)\"==\[%W cget -value\]} {set ::rb$p\($tag\) \"\"; break}" ;# tristate for radiobutton
+      bind $P.rb_$tag$i <ButtonRelease> "set gpopt($p) 1"
+   }
+   grid {*}$l -sticky W
+}
+
+proc set_arg {P x} {  ;#e.g. xlabel "label"
+   set p [winfo name $P] ;# us the last string as prefix
+   grid [label $P.l_$x -text $x] [entry $P.$x -textvariable arg$p\($x\) -bg white] -sticky news
+   grid $P.$x -columnspan 3
+   mbind $P.$x {<Return> <Key-KP_Enter>} {x11; break}
+   bind $P.$x <Key> "set gpopt($p) 1"  ;# check the frame checkbox
+}
+
+proc set_kwarg {P x} {  ;#e.g. xlabel offset 2
+   set p [winfo name $P]  ;# parent xlabel
+   grid [label $P.l_$x -text $x] [entry $P.$x -textvariable kw$p\($x\) -bg white] -sticky news
+   grid $P.$x -columnspan 3
+   mbind $P.$x {<Return> <Key-KP_Enter>} {x11; break}
+   bind $P.$x <Key> "set gpopt($p) 1"  ;# check the frame checkbox xlabel
+}
+
+proc optionframe {p name} {
+   frame $p.set$name
+   if {![array exists ::arg$name]} {array set ::arg$name {}}
+   if {![array exists ::kw$name]} {array set ::kw$name {}}
+   if {![array exists ::rb$name]} {array set ::rb$name {}}
+   if {![info exist ::gpopt($name)]} {set ::gpopt($name) ""}   ;# use tristate as undefined
+   pack [checkbutton $p.set$name.set$name -text "$name" -variable ::gpopt($name)] [button $p.set$name.b -text "?" -command "_gphelp \"$name\"" -padx 3 -pady 0] -side left
+   tricycle $p.set$name.set$name
+   pack [labelframe $p.$name -padx 20 -labelwidget $p.set$name] -fill both -expand yes -side bottom
+}
+
+proc _gpset {} {
+   if {![winfo exists .gpset]} {
+      toplevel .gpset   ;# Make the window
+      wm title .gpset "setting"
+      set tabs ".gpset.tabs"
+      pack [ttk::notebook $tabs] -anchor w -expand yes -fill both
+      foreach a {axes key general} {
+         $tabs add [frame $tabs.t_$a] -text "$a"
+      }
+      _axis
+      legend
+      general
+      button .gpset.b_clear -image clear-16 -command _clear -padx 2 -pady 0
+      button .gpset.b_apply -text "Apply" -command {x11}
+      button .gpset.b_close -text "Close" -command {destroy .gpset}
+      pack .gpset.b_clear -fill x -side left
+      pack .gpset.b_close .gpset.b_apply -fill x -side right
+   }
+}
+
+proc general {} {
+   _gpset
+
+   if {![winfo exists .gpset.tabs.t_general.title]} {
+      set general ".gpset.tabs.t_general"
+      optionframe $general title
+      set optfrm "$general.title"
+      set_arg $optfrm title
+      set_kwarg $optfrm offset
+      set_kwarg $optfrm font
+      set_kwarg $optfrm textcolor
+      set_cb $optfrm enhanced
+   }
+   .gpset.tabs select .gpset.tabs.t_general
+}
+
+proc legend {} {
+   _gpset
+
+   if {![winfo exists .gpset.tabs.t_key.key]} {
+      proc rb_key {x {tit ""}} { set_rb .gpset.tabs.t_key.key "$x" "$tit"}
+      proc cb_key {x} { set_cb .gpset.tabs.t_key.key "$x"}
+      proc kwarg_key {x} { set_kwarg .gpset.tabs.t_key.key "$x" }
+
+      set key ".gpset.tabs.t_key"
+      optionframe $key key
+      set optfrm "$key.key"
+
+      rb_key {on off}
+      grid [checkbutton $key.key.keydefault -text "default" -onvalue "default" -offvalue ""] -sticky W
+      kwarg_key title
+      rb_key {left right center} "Place"
+      rb_key {top bottom center}
+      rb_key {vertical horizontal} "Stacking"
+      rb_key {Left Right} "Justification"
+      cb_key "reverse"
+      cb_key "invert"
+      kwarg_key samplen
+      kwarg_key spacing
+      kwarg_key width
+      kwarg_key height
+      if {[info exist ::keyautotitle]==0} {set ::keyautotitle ""}
+#       grid [checkbutton $key.key.keyautotitle -text "autotitle" -onvalue "autotitle" -offvalue "noautotitle"]  [checkbutton $key.key.columnheader -text "columnheader"] -sticky W
+      cb_key "enhanced"
+      cb_key box
+   } else {
+      raise .gpset .
+#       puts [wm attributes .gpset]
+#       wm attributes .gpset -topmost 1
+#       focus .gpset
+#       wm attributes .gpset -topmost 0
+   }
+   .gpset.tabs select .gpset.tabs.t_key
+}
+
+
+proc _axis {{x ""}} {
+   _gpset
+   set axes ".gpset.axes"
+   if {![winfo exists .gpset.axes]} {
+
+      pack [ttk::notebook $axes] -in .gpset.tabs.t_axes -expand true -fill both
+      foreach a {x y z x2 y2 cb} {
+         $axes add [frame $axes.t_$a] -text "$a axis"
+      }
+
+      ttk::notebook::enableTraversal $axes
+
+      foreach a {x y z x2 y2 cb} {
+         set axis "$axes.t_$a"
+
+         optionframe $axis "${a}tics"
+         set optfrm "$axis.${a}tics"
+         set_rb $optfrm {axis border}
+         set_cb $optfrm mirror
+         set_rb $optfrm {in out}
+         set_kwarg $optfrm scale
+         set_kwarg $optfrm rotate
+         set_kwarg $optfrm add
+         set_kwarg $optfrm offset
+         set_kwarg $optfrm font
+         set_kwarg $optfrm textcolor
+
+         optionframe $axis "${a}range"
+         set optfrm "$axis.${a}range"
+         set_arg $optfrm range
+         set_cb $optfrm reverse
+         set_cb $optfrm writeback
+         set_cb $optfrm restore
+
+         optionframe $axis "${a}label"
+         set optfrm "$axis.${a}label"
+         set_arg $optfrm label
+         set_kwarg $optfrm offset
+         set_kwarg $optfrm font
+         set_kwarg $optfrm texcolor
+         set_kwarg $optfrm rotate
+         set_cb $optfrm "enhanced"
+
+         # pack this after optfrm then it will be over it
+         set name ${a}zeroaxis
+         if {![info exist ::gpopt($name)]} {set ::gpopt($name) ""}   ;# use tristate as undefined
+         pack [checkbutton $axis.log$a -text "logscale" -onvalue $a -offvalue "" -variable xgplog($a)]\
+              [checkbutton $axis.zero$a -text "${a}zeroaxis" -variable ::gpopt($name)] -side left
+         tricycle $axis.zero$a
+      }
+   } else {
+      raise .gpset
+   }
+   .gpset.tabs select .gpset.tabs.t_axes
+   if {$x!=""} {
+      .gpset.axes select .gpset.axes.t_$x }
+}
+
+
+proc w_quick {} {
+   global curfocus valor
+   if {![winfo exists .w_axes]} {
+      pack [frame .w_axes] -fill x
+      entry .w_axes.title -textvariable argtitle(title) -bg white
+      grid  [button .w_axes.b_title -text "Plot title" -command general -pady 0] .w_axes.title -sticky news
+
+      entry .w_axes.keytitle -textvariable kwkey(title) -bg white
+      grid  [button .w_axes.b_keytitle -text "Key title" -command legend -pady 0] .w_axes.keytitle -sticky news
+      bind .w_axes.keytitle {<Key>} "set ::gpopt(key) 1"  ;# mark the frame checkbox
+
+      # head row
+      grid  [label .w_axes.h_axis -text "axes"] [label .w_axes.h_label -text "label"] [label .w_axes.h_range -text range] [label .w_axes.h_tics -text tics] -sticky news
+      # rows
+      foreach a {x y z cb} {
+         entry .w_axes.${a}label -textvariable arg${a}label(label) -bg white -width 20
+         entry .w_axes.${a}range -textvariable arg${a}range(range) -bg white -width 10
+         entry .w_axes.${a}tics -textvariable arg${a}tics(tics) -bg white -width 10
+         grid  [button .w_axes.b_${a}axis -text "$a" -command "_axis $a" -pady 0]  .w_axes.${a}label .w_axes.${a}range .w_axes.${a}tics -sticky news
+         bind .w_axes.${a}label <Key> "set ::gpopt(${a}label) 1"  ;# mark the frame checkbox
+         bind .w_axes.${a}range <Key> "set ::gpopt(${a}range) 1"  ;# mark the frame checkbox
+         bind .w_axes.${a}tics <Key> "set ::gpopt(${a}tics) 1"    ;# mark the frame checkbox
+      }
+      grid columnconfigure .w_axes {1} -weight 20
+      grid columnconfigure .w_axes {2 3} -weight 10
+
+
+      set curfocus [focus]
+      focus .w_axes.xrange
+      #bind .w_axes {<Return> <KP_Enter>} x11
+      mbind [grid slaves .w_axes] {<Return> <KP_Enter>} x11
+      mbind [grid slaves .w_axes] {<Control-Return> <Control-KP_Enter>} {x11; destroy .w_axes; focus .trailer; set valor ""}
+      _updown_bind [join {.trailer title keytitle xlabel ylabel zlabel cblabel xrange yrange zrange cbrange xtics ytics ztics cbtics} " .w_axes."]
+
+      _input .w_axes e_label1 "Label 1"
+      grid columnconfigure .w_axes {1} -weight 1
+
+#       pack [frame .w_axes.confirm] -fill x -side right
+#       button .w_axes.confirm.b_ok    -text "OK"    -command {x11; destroy .w_axes}
+#       button .w_axes.confirm.b_apply -text "Apply" -command x11
+#       grid .w_axes.confirm.b_less .w_axes.confirm.b_more .w_axes.confirm.b_ok .w_axes.confirm.b_apply -sticky e
+#       #   grid columnconfigure .w_axes.confirm {1} -weight 1
+# 
+#       set varlabels [join {"" e_labtit e_xlabel e_ylabel keytitle E_label1}]
+#       set labelfields [join {"" e_labtit e_xlabel e_ylabel keytitle e_label1} " .w_axes." ]
+#       mbind $labelfields {<Return> <KP_Enter>} x11
+#       mbind $labelfields {<Control-Return> <Control-KP_Enter>} {x11; destroy .w_axes;  focus .trailer; set valor ""}
+#       focus  .w_axes.e_xlabel
+#       proc more {} {
+#         if {![winfo exists .w_axes.e_label2]} {
+#            entry .w_axes.e_label2 -textvariable label2  -bg white
+#            grid  [label .w_axes.l_label2 -text "Label 2"  ]   .w_axes.e_label2}
+#       }
+#       proc less {} {
+#         if [winfo exists .w_axes.e_label2] {
+#            destroy .w_axes.e_label2 .w_axes.l_label2 }
+#       }
+   } else {x11; destroy .w_axes; focus .trailer; set valor ""}
+}
+
+
+proc w_stderr {{new_konsol ""}} {
+   if {$new_konsol!=""} {set ::console [expr {"$new_konsol"=="$::console"?"None":"$new_konsol"}]}
+   if {$::console!="None" && ![winfo exists .w_stderr]} {
+      pack [text .w_stderr -width 35 ] -fill x
+ .w_stderr tag configure bold_italics -font \
+             {-family courier -size 12 -weight bold -slant italic}
+   }
+   if {$::console=="None" && [winfo exists .w_stderr]} {destroy .w_stderr}
+     if {$::console==6} {
+         # write to a file, exec file and read stderr
+         set writefile [open "/tmp/xgp" w]
+        # pipe $writefile
+         close $writefile
+         catch {exec gnuplot /tmp/xgp} stderr }
+      if {$::console==7} {
+         # output script by writing to a file and read the file
+         #set writefile [open "/tmp/xgp" w+]
+         set writefile [open "| cat" w+]
+         pipe $writefile
+         #seek $writefile 0
+         set out ""
+         after 200
+         fconfigure $writefile -blocking 0
+         while {[gets $writefile line] >=0} {append out "$line\n"}
+         #set stderr [read $writefile]  ;#read  only for real file?
+         set stderr $out  ;#read  only for real file?
+
+         close $writefile }
+      if {$::console=="xterm"} {
+         # xterm
+         set writefile [open "/tmp/xgp" w+]
+         pipe $writefile
+#         seek $writefile 0
+         close $writefile
+         if {"$::pid"!=""} {catch {exec kill -9 $::pid} bla}
+         set ::pid [exec xterm -into [scan [winfo id .w_stderr] %x] -e gnuplot -background white "/tmp/xgp" - &]
+         set e_info $::pid
+      }
+      if {$::console=="Error"} {
+        .w_stderr tag configure monospace -font {-family monospace -size 8}
+        .w_stderr replace 0.0 end $::stderr monospace}
+      if {$::console=="Script"} {
+         .w_stderr replace 0.0 end $::script }
+
+     foreach i {Script Error xterm} {
+        .f_o.b_o$i configure -relief [expr {"$::console"=="$i"?"sunken":"raised"}] }
+}
+
+
+proc _now {} { ;# [YYYY-MM-DD hh:mm:ss]
+   return [clock format [clock seconds] -format "\[%Y-%m-%d %T\]"]
+}
+
+proc _center {child parent} {
+   if {[winfo exists $child] && [winfo exists $parent] } {
+      # border offset
+      set bo 2
+      # We must make an update befor we calculate the new postion
+      # the update does the resizing
+      # (reqheigh, reqwidth does not do what is expected)
+      update
+
+      # we get current widget position and size
+      # and determin the center of the widget
+      foreach w {child parent} {
+         set wg [set $w]
+         set x$w [winfo x $wg]
+         set y$w [winfo y $wg]
+         set h$w [winfo height $wg]
+         set w$w [winfo width $wg]
+
+         # Find center of the Windows
+         set zx$w [expr [winfo x $wg] + ([winfo width $wg] /2)]
+         set zy$w [expr [winfo y $wg] + ([winfo height $wg] /2)]
+      }
+      # what is the maximum of a new postion
+      set wmax [winfo screenwidth $child]
+      set hmax [winfo screenheight $child]
+
+      # first possible new position if the parent
+      set newx [expr $zxparent - $wchild/2]
+      set newy [expr $zyparent - $hchild/2]
+
+      # think about border left
+      if {$newx < 0} { set newx $bo}
+      # think about border top
+      if {$newy < 0} { set newy $bo}
+      # think about border right
+      if {($newx + $wchild) > $wmax} { set newx [expr $wmax - $wchild - $bo]}
+      # think about border bottom
+      if {($newy + $hchild) > $hmax} { set newy [expr $hmax - $hchild - $bo]}
+
+      # put the child to the new position
+      wm geometry $child +$newx+$newy
+   }
+}
+
+
+proc w_help {} {
+   if {![winfo exists .top]} {
+      toplevel .top
+      wm title .top "Help About"
+
+      pack [text .top.t -width 35 -height 5 -wrap word -bg grey] -expand yes -fill both
+         .top.t tag configure bold_italics -font \
+             {-family courier -size 12 -weight bold -slant italic}
+         .top.t insert end "xgp - a gnuplot frontend\n\n"\
+         .top.t insert end "Version: $::xgp_version\n"
+         .top.t insert end "Author:  Mathias Zechmeister\n"
+      pack [button .top.b_help -text "OK" -command {destroy .top}]
+     _center .top .
+   }
+}
+
+proc _gphelp {item} {
+   if {![winfo exists .top]} {
+      toplevel .top
+      pack [frame .top.f] -fill x
+      pack [entry .top.f.e -bg white -text "$item"] -expand yes -fill x -side left
+      pack [button .top.f.b -image find-16 -compound left -text "find" -command {_gphelp [.top.f.e get]}]
+      mbind .top.f.e {<Key-Return> <Key-KP_Enter>} {_gphelp [.top.f.e get]}
+
+      pack [text .top.t -width 65 -height 35 -wrap word -bg "white"] -expand yes -fill both -side top
+         .top.t tag configure bold_italics -font \
+             {-family courier -size 24 -weight bold -slant italic}
+      pack [button .top.b_help -text "OK" -command {destroy .top}]
+#      _center .top .
+   }
+   wm title .top "gnuplot help: $item"
+   catch {exec echo "help $item" | gnuplot} stderr
+   .top.t replace 1.0 end "$stderr"
+}
+
+
+proc w_helpinfo {} {
+   if {![winfo exists .top]} {
+      toplevel .top
+      wm title .top "Help Info"
+
+      pack [text .top.t -width 35 -wrap word -bg grey] -expand yes -fill both
+         .top.t tag configure bold_italics -font \
+            {-family courier -size 12 -weight bold -slant italic}
+         .top.t insert end "For fast gnuplot scripting
+\nKey bindings:
+ ENTER - update the plot
+ UP and DOWN - jump to the fields
+ TAB - filename completion
+ Ctrl-l - labels
+ Ctrl-r - ranges
+ F5 - update plot
+ F6 - update script console
+ F7 - update error console
+\nFunctions:
+ Save - save the tcl settings
+ Save gnu - the piped gnuplot commands (minimal)
+ Export - save all gnuplot settings (maximal)
+\nTo Do:
+return stderr for pipe as a message\n"
+         .top.t insert end "\n"
+      pack  [button .top.b_help -text "OK" -command {destroy .top}]
+      _center .top .
+   }
+}
+
+proc _savegnu {saveas} {
+   global saveAsgnu
+   if {$saveas==""} {set saveAsgnu [putfile]}
+   if {$saveAsgnu!=""} {
+      set writefile [open $saveAsgnu w]
+      pipe  $writefile
+      close $writefile
+      wm title . "xgp $saveAsgnu"
+      putinfo "[_now] written as $saveAsgnu"
+   } else {putinfo "[_now] nothing saved"}
+}
+
+proc export {exportas} {
+   global FP
+   if {$exportas==""} {set exportas [putfile]}
+   if {$exportas!=""} {
+      set ::exportAs $exportas
+      puts $FP "save '$exportas'"
+      flush $FP
+      putinfo "[_now] exported to $exportas"
+   } else {putinfo "[_now] nothing exported"}
+}
+
+proc _load {} {
+   # just execute gnuplot's load command
+   if [getfile ::loadfile] {
+      puts $::FP "load $::loadfile"
+      flush $::FP
+      putinfo "[_now] load $::loadfile"
+   } else {putinfo "[_now] nothing loaded"}
+}
+
+proc _openxgp {{xgpfile ""}} {
+   if {$xgpfile==""} {set xgpfile [tk_getOpenFile -filetypes $::types  -parent .]}
+   if {$xgpfile!=""} {
+      set ::xgpfile $xgpfile
+      uplevel "source $xgpfile"
+      putinfo "[_now] opening: $xgpfile"
+      wm title . "xgp $xgpfile"
+      if $::cb_tk {embed tk}
+      for {set i 1} {$i<=$::nf} {incr i} {
+         if {![winfo exist .plotcmd.txtentry$i]} {addplotfield $i}}
+      x11
+   }
+}
+
+proc _savexgp {{xgpfile ""} {rename 1}} {
+   if {$xgpfile==""} {set xgpfile [putfile]}
+   if {$xgpfile!=""} {
+      if $rename {set ::xgpfile $xgpfile}
+      set output [open $xgpfile "w"]
+      set opt "xgp_version plcmd plcmd1 plcmd2 cb_tk cb_gif cb_x11 e_preview e_zoom trailer b_f1 b_f2 b_output outfile $::varlabels $::varfuncs $::varb_fs nf"
+
+      foreach variable $opt {
+         global $variable
+         if {[info exists $variable] && $variable!=""} {
+            puts $output "set $variable [list [set $variable]]"} }
+
+      puts $output "array set ::xgplog {[array get ::xgplog]}"
+
+      puts $output "array set ::gpopt {[array get ::gpopt]}"
+      foreach opt [array names ::gpopt] {
+         if {$::gpopt($opt)==1} {
+            if [info exists ::arg$opt] {
+               puts $output "array set ::arg$opt {[array get ::arg$opt]}"
+            }
+            if [info exists ::kw$opt] {
+               puts $output "array set ::kw$opt {[array get ::kw$opt]}"
+            }
+            if [info exists ::rb$opt] {
+               puts $output "array set ::rb$opt {[array get ::rb$opt]}"
+            }
+         }
+      }
+
+      puts $output ".header replace 1.0 end {[.header get 1.0 end-1c]}"  ;# strip char to avoid appending a newline
+      close $output
+      if $rename {wm title . "xgp $xgpfile"}
+      putinfo "[_now] written as $xgpfile"
+   } else {putinfo "[_now] nothing saved"}
+}
+
+proc _import {} {
+   # try to convert a gnu file to a xgp file
+   if [getfile ::importfile] {
+      puts $::FP "load $::loadfile";
+      flush $::FP;
+      putinfo "[_now] load $::loadfile"
+   } else {putinfo "[_now] nothing loaded"}
+}
+
+proc trow {t i} {
+   # query if a row position in a text widget equals to the current cursor row
+   return [expr [$t index $i] == int([$t index insert])]
+}
+
+proc _updown_bind {elemlist {prevelem ""}} {
+   foreach nextelem $elemlist {
+      if {$prevelem!=""} {
+         set cmd ""
+         if {"Text"=="[winfo class $prevelem]"} {
+            set cmd "if {!\[trow $prevelem end-1c\]} return;"}
+         bind $prevelem  <Key-Down> "$cmd focus $nextelem; break"
+
+         set cmd ""
+         if {"Text"=="[winfo class $nextelem]"} {
+            set cmd "if {!\[trow $nextelem 1.0\]} return;"}
+         bind $nextelem  <Key-Up>   "$cmd focus  $prevelem; break" }
+      set prevelem $nextelem }
+}
+
+proc mbind {fieldlist keylist cmd} {  ;# multibinding
+   foreach field  $fieldlist {
+      foreach bindkey  $keylist {
+         bind $field $bindkey  $cmd } }
+}
+
+proc grepbind {BIND_CHAR} {
+   global FP e_zoom
+   puts $FP  [exec sed -n ":again /\\\\$/{N;s/\\\\\\n//; t again}; /bind *\"$BIND_CHAR\"/{s/.*\"$BIND_CHAR. *.//; s/\"//p}" $e_zoom]
+   flush $FP
+}
+
+proc showframe {frame {pos ""}} {
+   set conf ::conf[string trim $frame .]
+   if [info exists $conf] {
+      pack configure $frame {*}[set $conf] {*}$pos
+      unset $conf
+   } else {
+      # save the configuration before deleting the frame
+      set $conf [pack info $frame]
+      pack forget $frame
+   }
+}
+
+proc plotinput {i} {
+   # create entry for plot arguments
+   lappend ::varfuncs "plcmd$i"
+   lappend ::varb_fs  "b_f$i"
+   set ::b_f$i 1
+   checkbutton .plotcmd.cb$i -variable b_f$i -command "_blurr \$b_f$i .plotcmd.txtentry$i"
+   entry .plotcmd.txtentry$i  -textvariable plcmd$i -bg white
+   grid .plotcmd.cb$i .plotcmd.txtentry$i  -sticky news
+   mbind .plotcmd.txtentry$i {<Key-Return> <Key-KP_Enter>} x11
+   bind .plotcmd.txtentry$i <Tab> {autocomplete [focus]}
+   bind .plotcmd.txtentry$i <Control-Shift-Key-Down> {downplotfield; break}
+   bind .plotcmd.txtentry$i <Control-Shift-Key-Up> {upplotfield; break}
+}
+
+proc addplotfield {{i ""}} {
+   if {$i==""} {set i [incr ::nf]}
+   if {![winfo exists .plotcmd.cb$i]} {  ;# dynamic function fields
+      plotinput $i
+      _updown_bind "[lsearch -inline -all [winfo children .plotcmd] *.txt*] .trailer"
+   }
+}
+
+proc delplotfield {} {
+   if {$::nf>2 && [winfo exists .plotcmd.cb$::nf]} {
+      set plcmd$::nf ""
+      incr ::nf -1
+      destroy {*}[grid slaves .plotcmd -row $::nf]  ;# zero-based indexing
+      _updown_bind ".plotcmd.txtentry$::nf .trailer"
+   }
+}
+
+proc insertplotfield {} {
+   set W .plotcmd.txtentry2
+   addplotfield
+   foreach f [grid slaves .plotcmd] {
+      puts $f
+      if {"$f"=="$W"} return
+      if {[winfo class $f]=="Entry"} {upplotfield $f}
+   }
+ }
+
+proc swap {W1 W2 b1 b2} {
+   set w1 ::[$W1 cget -textvariable]
+   set w2 ::[$W2 cget -textvariable]
+   set b1 ::[$b1 cget -variable]
+   set b2 ::[$b2 cget -variable]
+   foreach "$w1 $w2 $b1 $b2" [list [set $w2] [set $w1] [set $b2] [set $b1]] {} 
+   $W1 configure -fg [expr [set $b1]?"black":"grey"]
+   $W2 configure -fg [expr [set $b2]?"black":"grey"]
+}
+
+proc removeplotfield {} {
+   if { [llength [winfo children .plotcmd]] <= 4} return
+   set f [focus]
+   foreach {b e} [winfo children .plotcmd]  {
+      if {"$e"=="$f"} {
+         destroy $e $b
+        _updown_bind ".header [lreverse [grid slaves .plotcmd -column 1]] .trailer"
+      }
+   }
+}
+
+proc upplotfield {{f ""}} {
+   if {"$f"==""} {set f [focus]}
+   if {"$f"==".plotcmd.txtentry1"} return
+   set fn [tk_focusPrev [tk_focusPrev $f]]
+puts  "up $f $fn [tk_focusPrev $f] [tk_focusPrev $fn]"
+   swap $f $fn [tk_focusPrev $f] [tk_focusPrev $fn]
+   focus $fn
+}
+
+proc downplotfield {} {
+   set f [focus]
+   if {"$f"==".plotcmd.txtentry$::nf"} return
+   set fn [tk_focusNext [tk_focusNext $f]]
+   swap $f $fn [tk_focusPrev $f] [tk_focusPrev $fn]
+   focus $fn
+}
+
+proc embed {term} {
+   # will w
+   set ::cb_x11 [expr {"$term"=="x11" && $::cb_x11}]
+   set ::cb_gif [expr {"$term"=="gif" && $::cb_gif}]
+   set ::cb_tk [expr {"$term"=="tk" && $::cb_tk}]
+
+   if {![winfo exists .x11] && ![winfo exists .gif]} {
+      set ::oldwm [wm geometry .]   ;# remember old size
+      #wm minsize . 600 300
+      wm geometry . "" ;# ensure automatic resizing
+   }
+
+   if $::cb_x11 {
+      # embed x11
+      if {![winfo exists .x11]} {
+         frame .x11 -bg "white" -width 640 -height 450
+         pack .x11 -side right -expand true -fill both -before .mbar
+      }
+      set ::e_term "x11 window '[winfo id .x11]'"
+      after 50 x11  ;# some delay seems needed for tcl to create the frame
+   } else {destroy .x11}   ;# toggle off
+
+   if $::cb_gif {
+      if {![winfo exists .gif]} {
+         label .gif ;#-image [image create photo  -format gif -file /home/zechmeister/bin/test.gif]
+         pack .gif -side right -expand true -fill both -before .mbar
+      }
+      set ::e_term " gif; set out 'test.gif'"
+      after 200 x11
+   }  else {destroy .gif}   ;# toggle off
+
+   if $::cb_tk {
+      if {![winfo exists .tk]} {
+         canvas .tk  -bg "white" -width 640 -height 450
+         .tk configure -cursor cross
+         set ::zoomon 0
+
+         pack .tk -side right -expand true -fill both -before .mbar
+         bind .tk <Enter> {set curfocus [focus]; focus %W}
+         bind .tk <Leave> {focus $curfocus}
+         bind .tk <Escape> {
+            set ::zoomon 0
+            .tk configure -cursor cross
+            .tk delete zoomrect
+         }
+
+         bind .tk <MouseWheel> {puts "uur%D"}
+         bind .tk <Double-Button-1> {
+            # edit axis
+            set cmx [expr [winfo width %W]-2*[%W cget -border]-2*[%W cget -highlightthickness]]
+            if {$cmx <= 1} {set cmx [%W cget -width]}
+            set cmy [expr [winfo height %W]-2*[%W cget -border]-2*[%W cget -highlightthickness]]
+            if {$cmy <= 1} {set cmy [$can cget -height]}
+
+            foreach {x1 x2 y1 y2} [gnuplot_plotarea] {}
+            # what is difference between %x and [%W canvasx %x]? Seem to the same
+               if { %x < [expr $x1*$cmx/1000]} {putinfo "edit y-axis"; _axis y}
+               if { %y > [expr $y2*$cmy/1000]} {putinfo "edit x-axis"; _axis x}
+         }
+         bind .tk <Double-Button-3> {
+            # unzoom
+            set ::zoomon 0
+            .tk configure -cursor cross
+            x11_tmp "set out 'test.file'; set xrange \[*:*\];  set yrange \[*:*\];  repl; set out"
+         }
+
+         proc getscale {} {
+            set W .tk
+            set cmx [expr [winfo width $W]-2*[$W cget -border]-2*[$W cget -highlightthickness]]
+            if {$cmx <= 1} {set cmx [$W cget -width]}
+            set cmy [expr [winfo height $W]-2*[$W cget -border]-2*[$W cget -highlightthickness]]
+            if {$cmy <= 1} {set cmy [$W cget -height]}
+
+            foreach {gx1 gx2 gy1 gy2} [gnuplot_plotarea] {}
+            foreach {x1 x2 y1 y2} [gnuplot_axisranges] {}
+            # what is difference between %x and [%W canvasx %x]? Seem to the same
+
+            set ::sx [expr ($x2-$x1) / $cmx * 1000/($gx2-$gx1)]
+            set ::sy [expr ($y2-$y1) / $cmy * 1000/($gy2-$gy1)]
+            putinfo "$x1 $x2 $gx1 $gx2 $::sx $::sy"
+         }
+         bind .tk <ButtonPress-2> {
+            # start pan
+            .tk configure -cursor fleur
+            set ::x0 %x
+            set ::y0 %y
+            getscale
+         }
+         bind .tk <ButtonRelease-2> {
+            # finish pan
+            .tk configure -cursor cross
+            set ::dx [expr -(%x-$::x0)*$sx]
+            set ::dy [expr (%y-$::y0)*$sy]
+            x11_tmp "set out 'test.file'; set xrange \[GPVAL\_X\_MIN+$::dx:GPVAL\_X\_MAX+$::dx\]; set yrange \[GPVAL\_Y\_MIN+$::dy:GPVAL\_Y\_MAX+$::dy\]; repl; set out"
+         }
+
+         bind .tk <ButtonPress-3> {
+            # start zoom
+            set ::zoomon [expr !$::zoomon]
+            if $::zoomon {
+               .tk configure -cursor sizing
+               putinfo "rect %x %y"
+               set ::x0 %x
+               set ::y0 %y
+               .tk create rect %x %y %x %y -tag zoomrect -dash {6 4}
+               foreach {x1 x2 y1 y2} [gnuplot_plotarea] {}
+               # what is difference between %x and [%W canvasx %x]? Seem to the same
+               set cmx [expr [winfo width %W]-2*[%W cget -border]-2*[%W cget -highlightthickness]]
+               if {$cmx <= 1} {set cmx [%W cget -width]}
+               set cmy [expr [winfo height %W]-2*[%W cget -border]-2*[%W cget -highlightthickness]]
+               set ::zoommode xy
+               if {$cmy <= 1} {set cmy [$can cget -height]}
+               if { %y > [expr $y2*$cmy/1000]} {
+                  set ::zoommode x
+                  putinfo "zoomx"
+                  bind .tk <Motion> "putinfo \"on xrect $y1 $y2\"; .tk coords zoomrect $::x0 [expr $y1*$cmy/1000] \045x [expr $y2*$cmy/1000]"
+               } elseif { %x < [expr $x1*$cmx/1000]} {
+                  set ::zoommode y
+                  putinfo "zoomy"
+                  bind .tk <Motion> "putinfo \"on yrect $y1 $y2\"; .tk coords zoomrect [expr $x1*$cmx/1000] $::y0 [expr $x2*$cmx/1000] \045y"
+               } else {
+                  # %x will be replaced even if in braces, use ascii for "%"
+                  # bind .tk <Motion> {putinfo "on rect %x %y\"; .tk coords zoomrect $::x0 $::y0 %x %y"}
+                  bind .tk <Motion> "putinfo \"on rect \045x \045y\"; .tk coords zoomrect $::x0 $::y0 \045x \045y"
+               }
+            }
+         }
+         bind .tk <ButtonRelease-3> {
+            # end zoom
+            if $::zoomon {  } {
+               .tk configure -cursor crosshair
+
+               set cmx [expr [winfo width %W]-2*[%W cget -border]-2*[%W cget -highlightthickness]]
+               if {$cmx <= 1} {set cmx [%W cget -width]}
+               set cmy [expr [winfo height %W]-2*[%W cget -border]-2*[%W cget -highlightthickness]]
+               if {$cmy <= 1} {set cmy [%W cget -height]}
+
+               foreach {x1 x2 y1 y2} [gnuplot_plotarea] {}
+               foreach {xl xh yl yh zl zh cl ch} [gnuplot_axisranges] {}
+
+               set xln [expr $xl+ ($xh-$xl) * ($::x0*1000/$cmx-$x1) / ($x2-$x1)]
+               set xhn [expr $xl+ ($xh-$xl) * (%x*1000/$cmx-$x1) / ($x2-$x1)]
+               set yhn [expr $yl+ ($yh-$yl) * ($::y0*1000/$cmy-$y2) / ($y1-$y2)]
+               set yln [expr $yl+ ($yh-$yl) * (%y*1000/$cmy-$y2) / ($y1-$y2)]
+               if {$xln>$xhn} {foreach {xhn xln} "$xln $xhn" {}}  ;# avoid reverse xrange
+               if {$yln>$yhn} {foreach {yhn yln} "$yln $yhn" {}}
+
+               putinfo "$xl $::x0 %x $xln $xhn"
+
+               if {$::zoommode=="x" && $xln!=$xhn} { x11_tmp "set out 'test.file'; set xrange \[$xln:$xhn\]; repl; set out"
+               } elseif {$::zoommode=="y" && $yln!=$yhn} { x11_tmp "set out 'test.file'; set yrange \[$yln:$yhn\]; repl; set out"
+               } elseif {$xln!=$xhn && $yln!=$yhn} {
+                  x11_tmp "set out 'test.file'; set xrange \[$xln:$xhn\]; set yrange \[$yln:$yhn\]; repl; set out"
+               }
+               .tk delete zoomrect
+               bind .tk <Motion> { }
+            }
+         }
+         bind .tk <Button-4> {
+            # mouse wheel zoom in
+            x11_tmp {set out 'test.file'; set xrange [GPVAL_X_MIN+DELTA_X(ZOOM_X):GPVAL_X_MAX-DELTA_X(ZOOM_X)]; set yrange [GPVAL_Y_MIN+DELTA_Y(ZOOM_Y):GPVAL_Y_MAX-DELTA_Y(ZOOM_Y)]; repl; set out}
+            putinfo "in" 
+         }
+         bind .tk <Button-5> {
+            # mouse wheel zoom out
+            x11_tmp {set out 'test.file'; set xrange [GPVAL_X_MIN-DELTA_X(ZOOM_X):GPVAL_X_MAX+DELTA_X(ZOOM_X)]; set yrange [GPVAL_Y_MIN-DELTA_Y(ZOOM_Y):GPVAL_Y_MAX+DELTA_Y(ZOOM_Y)]; repl; set out}
+            putinfo "out"
+         }
+         bind .tk <Control-Button-5> {
+            x11_tmp {set out 'test.file'; set xrange [GPVAL_X_MIN-DELTA_X(ZOOM_X):GPVAL_X_MAX+DELTA_X(ZOOM_X)]; repl; set out}
+            putinfo "out x" 
+         }
+      }
+
+      # set ::e_term " tk interactive; set out 'test.file'"
+      set ::e_term " tk; set out 'test.file'"
+
+      # https://core.tcl.tk/tips/doc/trunk/tip/304.md
+      after 50 x11
+   } else {destroy .tk}   ;# toggle off
+
+   if {!$::cb_x11 && !$::cb_gif && !$::cb_tk} {
+      set ::e_term $::def_term
+      putinfo $::e_term
+      wm geometry . $::oldwm
+   }
+   #http://wiki.tcl.tk/1051
+}
+
+_pref_load
+# set FP [open "| gnuplot $e_gpconf |& cat" w+]    ;# redirect stder
+set FP [open "| gnuplot $e_gpconf 2>@1" w+]    ;# redirect stder
+
+### Menu
+pack [frame .mbar -relief groove -bd 1] -fill x
+menubutton .mbar.file -text "File"   -menu .mbar.file.menu
+menubutton .mbar.edit -text "Edit"   -menu .mbar.edit.menu
+menubutton .mbar.view -text "View"   -menu .mbar.view.menu
+menubutton .mbar.obj  -text "Object" -menu .mbar.obj.menu
+menubutton .mbar.setting  -text "Settings" -menu .mbar.setting.menu
+menubutton .mbar.help -text "Help"   -menu .mbar.help.menu
+pack {*}[winfo children .mbar] -side left
+
+menu .mbar.file.menu -tearoff 0
+.mbar.file.menu add command -label "New"  -accelerator "Ctrl-n" -command {exec  $argv0 &} -image docnew-16 -compound left
+.mbar.file.menu add command -label "Clone" -command {set pip [open "|cat"]; _savexgp $pip 0;  exec $argv0 $pip &}
+.mbar.file.menu add command -label "Open..." -accelerator "Ctrl-o" -command {_openxgp} -image fileopen-16  -compound left
+.mbar.file.menu add command -label "Save" -accelerator "Ctrl-s" -command {_savexgp $xgpfile} -image filesave-16  -compound left
+.mbar.file.menu add command -label "Save as..." -command _savexgp -image filesaveas-16 -compound left
+.mbar.file.menu add command -label "Load gnu..." -command _load
+.mbar.file.menu add command -label "Save gnu" -accelerator "Ctrl-g" -command {_savegnu $saveAsgnu}
+.mbar.file.menu add command -label "Import gnu..." -command _import
+.mbar.file.menu add command -label "Export" -command {export $exportAs}
+.mbar.file.menu add command -label "Export as..." -command {export ""}
+.mbar.file.menu add command -label "Export to shell" -command {_shellexport} -image  terminal-16 -compound left
+.mbar.file.menu add separator
+.mbar.file.menu add command -label "Quit" -accelerator "Ctrl-q" -command exit -image exit-16 -compound left
+
+menu .mbar.edit.menu
+.mbar.edit.menu add command -label "axes..." -command _axis
+.mbar.edit.menu add command -label "legend..." -command {legend}
+.mbar.edit.menu add command -label "insert data file..." -command {insertfile [focus]} -image text-plain-16 -compound left
+menu .mbar.edit.menu.pf -tearoff 0  ;# First, make sure there is a x11 menu.
+.mbar.edit.menu add cascade -label "plot field" -menu .mbar.edit.menu.pf
+.mbar.edit.menu.pf add command -label "insert" -command insertplotfield
+.mbar.edit.menu.pf add command -label "add" -command addplotfield
+.mbar.edit.menu.pf add command -label "delete" -command delplotfield
+.mbar.edit.menu.pf add command -label "remove" -command removeplotfield
+.mbar.edit.menu.pf add command -label "movedown" -command downplotfield -accelerator "Ctrl-Shift-Down"
+.mbar.edit.menu.pf add command -label "moveup" -command upplotfield -accelerator "Ctrl-Shift-Up"
+.mbar.edit.menu add command -label "clear line" -command _clear -image clear-16 -compound left
+.mbar.edit.menu add command -label "clear all fields" -command {_clear *}
+.mbar.edit.menu add command -label "reset" -command {puts $FP "reset" ; x11}
+# .mbar.edit.menu add cascade -label "terminal" -menu .mbar.edit.menu.x11
+# menu .mbar.edit.menu.x11 -tearoff 0  ;# First, make sure there is a x11 menu.
+# .mbar.edit.menu.x11 add radiobutton -label "wxt" -variable e_term
+# .mbar.edit.menu.x11 add radiobutton -label "x11" -variable e_term
+# .mbar.edit.menu.x11 add radiobutton -label "x11ooo" -variable e_term -command {showframe .x11; embedX11}
+menu .mbar.view.menu
+.mbar.view.menu add checkbutton -label "Main toolbar" -variable cb_plottyp -command {showframe .toolbar  "-after .mbar"}
+.mbar.view.menu add checkbutton -label "Term toolbar" -variable cb_term -command {showframe .term  "-before .tmp_cmd"}
+.mbar.view.menu add checkbutton -label "Zoom toolbar" -variable cb_zoom -command {showframe .f_zoom  "-after .info"}
+.mbar.view.menu add separator
+.mbar.view.menu add checkbutton -label "x11 embedded" -variable cb_x11 -command {embed x11}
+.mbar.view.menu add checkbutton -label "gif embedded" -variable cb_gif -command {embed gif}
+.mbar.view.menu add checkbutton -label "tk embedded" -variable cb_tk -command {embed tk}
+.mbar.view.menu add separator
+.mbar.view.menu add radiobutton -label "right embed" -variable lay -command {pack configure .x11 -side right -before .mbar} -accelerator "F1"
+.mbar.view.menu add radiobutton -label "left embed" -variable lay -command {pack configure .x11 -side left -before .mbar} -accelerator "F2"
+.mbar.view.menu add radiobutton -label "top embed" -variable lay -command {pack configure .x11 -side top -before .mbar} -accelerator "F3"
+.mbar.view.menu add radiobutton -label "bottom embed" -variable lay -command {pack configure .x11 -side bottom -after .mbar} -accelerator "F4"
+
+.mbar.view.menu add separator
+.mbar.view.menu add radiobutton -label "None" -variable console -command {w_stderr}
+.mbar.view.menu add radiobutton -label "Script" -variable console -command {w_stderr}
+.mbar.view.menu add radiobutton -label "Error" -variable console -command {w_stderr}
+.mbar.view.menu add radiobutton -label "Xterm" -variable console -command {w_stderr}
+menu .mbar.obj.menu
+.mbar.obj.menu add radiobutton -label "Labels" -variable objtype -command { }
+.mbar.obj.menu add radiobutton -label "Rectangles" -variable objtype -command { }
+menu .mbar.setting.menu
+.mbar.setting.menu add checkbutton -label "verbose info" -variable cb_debug
+.mbar.setting.menu add separator
+.mbar.setting.menu add command -label "Preferences..." -command p_prefs -image pref-16 -compound left
+
+menu .mbar.help.menu
+.mbar.help.menu add command -label "Info..."  -command w_helpinfo -image help-hint-16 -compound left
+.mbar.help.menu add command -label "About xgp.." -command w_help -image help-about-16 -compound left
+.mbar.help.menu add command -label "Debug..." -command debug -image kbug-16 -compound left
+.mbar.help.menu add cascade -label "gnuplot" -menu .mbar.help.menu.gp -image help-content-16 -compound left
+menu .mbar.help.menu.gp
+foreach item {help key multiplot plot terminal} {
+   .mbar.help.menu.gp add command -label "$item..." -command "_gphelp $item"
+}
+
+
+proc setacc {pathName} {
+   # set accelerator automatic
+   for {set i 1} {$i <= [$pathName index end]} {incr i} {
+      if {[$pathName type $i] ne "separator"} {
+         set acc [$pathName entrycget $i -accelerator]
+         if {"$acc" ne ""} {
+            set acc [string map {Ctrl Control} $acc]
+            set cmd [$pathName entrycget $i -command]
+            if {[$pathName type $i] eq "checkbutton"} {set cmd "toggle [$pathName entrycget $i -variable]; $cmd"}
+            putinfo "bind all <$acc> {$cmd}"
+            uplevel "bind all <$acc> {$cmd}" }
+      }
+   }
+}
+
+setacc .mbar.file.menu
+setacc .mbar.view.menu
+
+### Update
+package require Tk
+#ttk::setTheme clam
+#ttk::setTheme xpnative
+#ttk::setTheme alt
+#ttk::setTheme classic
+# ttk::notebook .n
+# ttk::frame .n.f1; # first page, which would get widgets gridded into it 
+# ttk::frame .n.f2; # second page
+# ttk::frame .n.f3; # second page
+# .n add .n.f1 -text "One"
+# .n add .n.f2 -text "Two"
+# .n add .n.f3 -text "tics"
+# pack .n
+
+
+pack [frame .toolbar] -fill both -after .mbar
+   button .toolbar.b_save -image filesave-16 -command {_savexgp $xgpfile}
+   button .toolbar.b_moref -text "f+" -padx 2 -pady 0 -command addplotfield
+   button .toolbar.b_lessf -text "f-" -padx 2 -pady 0 -command removeplotfield
+   button .toolbar.fbi -image text-plain-16 -command {insertfile [focus]} -padx 2 -pady 0
+   button .toolbar.b_update -image gpicon -command x11
+
+   radiobutton .toolbar.rb_1 -text "2D" -variable plcmd -value plot  -command x11
+   radiobutton .toolbar.rb_2 -text "3D" -variable plcmd -value splot -command x11
+# tk_optionMenu .omn opt "" "polar" "parametric" -width 10
+   ttk::combobox .toolbar.c -values {"" "polar" "parametric"} -width 6
+   button .toolbar.b_clear -image clear-16 -command _clear -padx 2 -pady 0
+   grid {*}[winfo children .toolbar]
+   #grid columnconfigure .toolbar {2} -weight 1
+   .toolbar.rb_1 select
+
+### output
+pack [frame .term] -fill x
+   checkbutton .term.b_output -variable b_output -command {_blurr $b_output .term.e_output}
+   entry  .term.e_output -textvariable outfile  -bg white -width 5 -fg grey
+   button .term.b_view   -text @@ -command _view   -padx 2 -pady 0
+   button .term.b_delete -text X  -command _delete -padx 2 -pady 0
+   grid {*}[winfo children .term] -sticky news
+   grid columnconfigure .term {1} -weight 1
+
+### plotting area
+pack [entry .tmp_cmd -textvariable tmp_cmd -bg white] -fill x
+
+ttk::panedwindow .plotarea -orient vertical
+pack .plotarea  -fill both -expand yes
+   .plotarea add [text .header -bg white -width 20 -height 3 -undo yes] -weight 10
+   .plotarea add [frame .ptop]  -weight 5
+      frame .plotcmd -height 20
+         plotinput 1
+         plotinput 2
+         grid columnconfigure .plotcmd {1} -weight 15
+      pack .plotcmd -in .ptop  -fill x
+
+      text .trailer -bg white -width 20 -height 3 -undo yes
+      pack .trailer -in .ptop  -fill both -expand yes
+
+pack [entry .info  -textvariable e_info -bg grey] -fill x
+
+pack [frame .f_zoom] -fill both
+   puts $FP "load '~/zoom.gnu'"; flush $FP
+   checkbutton .f_zoom.cb_zoom -variable cb_zoom -command {puts $FP "load '~/zoom.gnu'"; flush $FP}
+   button .f_zoom.b_up      -text "^" -padx 3 -command {grepbind Up}
+   button .f_zoom.b_down    -text "v" -padx 5 -command {grepbind Down}
+   button .f_zoom.b_left    -text "<" -padx 5 -command {grepbind Left}
+   button .f_zoom.b_right   -text ">" -padx 5 -command {grepbind Right}
+   button .f_zoom.b_zoomin  -text "+" -padx 5 -command {grepbind +}
+   button .f_zoom.b_zoomout -text "-" -padx 4 -command {grepbind -}
+   grid {*}[winfo children .f_zoom]  -sticky news
+   grid columnconfigure .f_zoom {1 2 3 4 5 6} -weight 1
+
+
+set types {
+   {{All Files}        *             }
+   {{Data Files}       {.dat}    TEXT}
+   {{Text Files}       {.txt}        }
+   {{Data Files}       {.plt}        }
+   {{xgp Files}        {.xgp}        }
+   {{gnu Scripts}      {.gnu}        } }
+
+proc getfile {var} {
+   set file [tk_getOpenFile -filetypes $::types]
+   # strip absolution directory path if possible
+   if {$file!=""} {set ::$var '[string map [list [pwd]/ ""]  $file]'; return 1}
+   return 0
+}
+
+proc insertfile {var} {
+   set file [tk_getOpenFile -filetypes $::types]
+   if {$file!=""} {$var insert insert '[string map [list [pwd]/ ""]  $file]'; return 1}
+   return 0
+}
+
+proc putfile {} {
+   set file [tk_getSaveFile -filetypes $::types]
+   if {$file==""} return
+   return [string map [list [pwd]/ ""]  $file]
+}
+
+proc autocomplete {entry_name} {
+   # auto-completion
+   global e_info
+   set curpos [$entry_name index insert]
+   set e_line [$entry_name get]
+   set query  [string range $e_line 0 [expr $curpos-1]]
+   set query  [lindex [split $query "'\" "] end]   ;# last part of splitted query
+   set quresult [concat [lsort [glob -nocomplain $query*/]] [lsort [glob -types {b c f l p s} -nocomplain $query*]]]   ;# files and dirs
+   set e_info [lsort $quresult]
+   set first [lindex $e_info 0]    ;# array is sorted only need to compare first and last entry
+   set last  [lindex $e_info end]
+   set matchlen [set querylen [string length $query]]  ;# find Longest Common Prefix
+   while {[string equal -length $matchlen $first $last] && $matchlen<=[string length $first]} {incr matchlen}
+   set reply [string range $first $querylen [expr $matchlen-2]]
+   if {$first==$last && $first!="" && [string index $reply end]!="/"} {
+      set ch [string index $e_line [expr $curpos-$querylen-1]] ;# char in front
+      if {$ch!=" "} {set ch "$ch "}   ;# create post char
+      set reply "$reply$ch"} ;# full unique file match => complete quotes, blanks insert
+   $entry_name insert insert $reply
+   set e_info {};  foreach i $quresult {lappend e_info [file tail $i][expr ([regexp "/$" $i]?"/":"")]} ;# correct for slash removed by tail
+}
+
+mbind {.header .trailer .tmp_cmd  .term.e_output} <Tab> {autocomplete [focus]}
+mbind {.header .trailer}  {<Control-Return> <Shift-Return> <Key-KP_Enter>} {x11; break} ;# break to prevent entering a newline
+mbind .tmp_cmd  {<Key-Return> <Key-KP_Enter>} {x11_tmp $::tmp_cmd}
+
+_updown_bind ".term.e_output .tmp_cmd .header .plotcmd.txtentry1 .plotcmd.txtentry2 .trailer"
+bind all  <Control-r>  w_quick
+bind all  <F5>         x11
+bind .    <F6>         "w_stderr Script"
+bind .    <F7>         "w_stderr Error"
+bind .    <Tab>        break
+bind Entry <Control-a> {%W selection range 0 end; break}
+bind Entry <Control-k> { %W delete 0 end; break }         ;# delete line
+bind Entry <Control-w> {
+   # delete word
+   set ipos [%W index insert]
+   set apos [string last " " [%W get] $ipos-1]
+   %W delete $apos $ipos; break          ;# delete line
+}
+bind Entry <Control-q> {%W delete 0 ; break}          ;# delete word
+bind Text  <Control-a> {%W tag add sel 0.0 end; break}
+focus .plotcmd.txtentry1
+
+pack [frame .f_o] -fill both
+   radiobutton .b_set_range -text "axes & labels" -indicatoron false -variable valor -value A -selectcolor grey -command w_quick
+   radiobutton .b_set_tics -text tics -indicatoron false -variable valor -value C -selectcolor grey -command w_tics
+   button .f_o.b_oScript  -padx 2 -pady 0 -text script -command {w_stderr Script}
+   button .f_o.b_oError  -padx 2 -pady 0 -text err    -command {w_stderr Error}
+   button .f_o.b_oxterm  -padx 2 -pady 0 -text xterm  -command {w_stderr xterm}
+   grid .f_o.b_oScript .f_o.b_oError .f_o.b_oxterm  .b_set_range -sticky news
+   grid columnconfigure .f_o {0 1 2 3 4} -weight 1
+
+foreach arg $argv {
+#   if [regexp ".xgp$" $arg]
+   if [file exist $arg] {_openxgp "$arg"
+   } else {set plcmd[incr i] $arg} }
+
+if [llength $argv] { if $cb_x11 {embed x11} x11} ;#  for start up
+
+# emulate functionality of the Tab key to Up-Down
+mbind {Entry Radiobutton Checkbutton Button} <Key-Down> {focus [tk_focusNext %W]}
+mbind {Entry Radiobutton Checkbutton Button} <Key-Up> {focus [tk_focusPrev %W]}
+
+#bind Entry <Return> {event generate %W <Tab>}
+bind Text <Control-y> { event generate %W <<Redo>>} ;# Redo bind to Ctrl-Z http://www.tcl.tk/cgi-bin/tct/tip/26.txt
+
+#EOF
