@@ -1,8 +1,8 @@
-# xgp - tcl/tk frontend gui for gnuplot
+# [xgp](xgp) - tcl/tk frontend gui for gnuplot
 
  <img src="xgp_demo.png" width="100%"/>	
 
-xgp provides a GUI for gnuplot. It is a standalone tcl/tk script.
+[xgp](xgp)  provides a GUI for gnuplot. It is a standalone tcl/tk script.
 
 It is a feasibily demo for some nice-to-have features. It is largely functional but under development.
 It aims for faster scripting.
